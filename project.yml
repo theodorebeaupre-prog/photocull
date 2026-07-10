@@ -1,0 +1,24 @@
+name: PhotoCull
+options:
+  bundleIdPrefix: ca.isonord
+packages:
+  PhotoCullCore:
+    path: Core
+targets:
+  PhotoCull:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [App]
+    dependencies:
+      - package: PhotoCullCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.isonord.photocull
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 ISO NORD CA"
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_APP_SANDBOX: NO
