@@ -4,6 +4,7 @@ import SwiftUI
 struct ReviewView: View {
     @EnvironmentObject var session: CullSessionViewModel
     @State private var index = 0
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 8) {
@@ -42,10 +43,14 @@ struct ReviewView: View {
             }
         }
         .focusable()
+        .focused($isFocused)
+        .onAppear { isFocused = true }
         .onKeyPress(.rightArrow) { move(1); return .handled }
         .onKeyPress(.leftArrow) { move(-1); return .handled }
         .onKeyPress(KeyEquivalent("k")) { decide(.keep); return .handled }
         .onKeyPress(KeyEquivalent("x")) { decide(.reject); return .handled }
+        .onKeyPress(KeyEquivalent("K")) { decide(.keep); return .handled }
+        .onKeyPress(KeyEquivalent("X")) { decide(.reject); return .handled }
     }
 
     private var boundedIndex: Int {
