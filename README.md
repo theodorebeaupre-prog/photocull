@@ -9,7 +9,7 @@ entirely on your Mac. No cloud, no account, no subscription.
 > Tools like Aftershoot and Narrative Select charge $10–30/month to do this
 > in the cloud. PhotoCull does it locally with Apple's Vision framework, for $0.
 
-<!-- TODO at release: demo GIF here -->
+![PhotoCull demo](docs/demo.gif)
 
 ## Features
 
