@@ -6,6 +6,8 @@ struct ContentView: View {
     @EnvironmentObject var session: CullSessionViewModel
     @State private var showPicker = false
     @State private var tab: ViewTab = .grid
+    @State private var confirmMove = false
+    @State private var exportMessage: String?
 
     enum ViewTab: Hashable { case grid, review, groups }
 
@@ -66,6 +68,46 @@ struct ContentView: View {
                     .disabled(session.isAnalyzing || session.photos.isEmpty)
                     .help("Pre-fill undecided photos with suggested keep/reject — adjust anything after")
             }
+            ToolbarItem {
+                Button("Write XMP Sidecars") {
+                    do {
+                        try session.exportXMP()
+                        let undecided = session.photos.count - session.decidedCount
+                        exportMessage = undecided > 0
+                            ? "XMP sidecars written. \(undecided) photo(s) still undecided were skipped."
+                            : "XMP sidecars written."
+                    } catch {
+                        exportMessage = "XMP export failed: \(error.localizedDescription)"
+                    }
+                }
+                .disabled(session.decisions.isEmpty)
+            }
+            ToolbarItem {
+                Button("Move Rejects…") { confirmMove = true }
+                    .disabled(session.rejected.isEmpty)
+            }
+        }
+        .confirmationDialog(
+            "Move \(session.rejected.count) rejected photo(s) to _rejects?",
+            isPresented: $confirmMove
+        ) {
+            Button("Move", role: .destructive) {
+                do {
+                    try session.exportMoveRejects()
+                    exportMessage = "Rejects moved to _rejects."
+                } catch {
+                    exportMessage = "Move failed: \(error.localizedDescription)"
+                }
+            }
+        }
+        .alert(
+            exportMessage ?? "",
+            isPresented: Binding(
+                get: { exportMessage != nil },
+                set: { if !$0 { exportMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
         }
     }
 }
