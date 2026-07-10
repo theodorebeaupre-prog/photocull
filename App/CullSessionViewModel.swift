@@ -37,6 +37,9 @@ final class CullSessionViewModel: ObservableObject {
                 }
             }
             photos.sort { $0.id.lastPathComponent < $1.id.lastPathComponent }
+            let known = Set(photos.map(\.id))
+            decisions = decisions.filter { known.contains($0.key) }
+            persist()
             regroup()
             isAnalyzing = false
         }
@@ -115,15 +118,18 @@ final class CullSessionViewModel: ObservableObject {
 
     func exportMoveRejects() throws {
         guard let folder else { return }
-        let moved = rejected
-        try RejectMover.moveRejects(moved, from: folder)
-        photos.removeAll { moved.contains($0.id) }
-        for url in moved {
-            decisions.removeValue(forKey: url)
-            featurePrints.removeValue(forKey: url)
+        let candidates = rejected
+        defer {
+            let gone = candidates.filter { !FileManager.default.fileExists(atPath: $0.path) }
+            photos.removeAll { gone.contains($0.id) }
+            for url in gone {
+                decisions.removeValue(forKey: url)
+                featurePrints.removeValue(forKey: url)
+            }
+            regroup()
+            persist()
         }
-        regroup()
-        persist()
+        try RejectMover.moveRejects(candidates, from: folder)
     }
 
     private func persist() {
