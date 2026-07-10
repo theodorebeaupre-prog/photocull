@@ -30,13 +30,13 @@ entirely on your Mac. No cloud, no account, no subscription.
 ## Install
 
 ```sh
-brew install --cask theopicture/tap/photocull
+brew install --cask theodorebeaupre-prog/tap/photocull
 ```
 
 Or build from source:
 
 ```sh
-git clone https://github.com/theopicture/photocull && cd photocull
+git clone https://github.com/theodorebeaupre-prog/photocull && cd photocull
 brew install xcodegen
 xcodegen generate
 xcodebuild -project PhotoCull.xcodeproj -scheme PhotoCull -configuration Release build
