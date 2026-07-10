@@ -25,6 +25,9 @@ entirely on your Mac. No cloud, no account, no subscription.
   report is yours the moment analysis ends
 - **Non-destructive output** — move rejects to `_rejects/`, or write
   **XMP sidecars** that Lightroom Classic reads directly (cull here, edit there)
+- **Both Lightrooms supported** — XMP sidecars for Lightroom Classic, and
+  "Export Keepers" for Lightroom (cloud): copies with the rating embedded in
+  the file header, ready to import — originals never touched
 - **Private by design** — zero network calls, zero telemetry
 
 ## Install

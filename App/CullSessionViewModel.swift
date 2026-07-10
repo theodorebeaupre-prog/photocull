@@ -112,6 +112,18 @@ final class CullSessionViewModel: ObservableObject {
         decisions.filter { $0.value == .reject }.map(\.key)
     }
 
+    var keepers: [URL] {
+        decisions.filter { $0.value == .keep }.map(\.key)
+    }
+
+    /// Copies keepers (never the originals) into `destination` for import
+    /// into Lightroom cloud — ratings embedded in non-RAW copies, sidecars
+    /// next to RAW copies.
+    @discardableResult
+    func exportKeepers(to destination: URL) throws -> KeeperExporter.ExportResult {
+        try KeeperExporter.exportKeepers(keepers, to: destination)
+    }
+
     /// Deterministic path order so RAW+JPEG pairs sharing one sidecar name
     /// always resolve the same way (first alphabetical wins; existing
     /// sidecars are never overwritten).

@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var tab: ViewTab = .grid
     @State private var confirmMove = false
     @State private var exportMessage: String?
+    @State private var showKeeperDestPicker = false
 
     enum ViewTab: Hashable { case grid, review, groups }
 
@@ -91,6 +92,11 @@ struct ContentView: View {
                 Button("Move Rejects…") { confirmMove = true }
                     .disabled(session.isAnalyzing || session.rejected.isEmpty)
             }
+            ToolbarItem {
+                Button("Export Keepers…") { showKeeperDestPicker = true }
+                    .disabled(session.isAnalyzing || session.keepers.isEmpty)
+                    .help("Copy kept photos with embedded ratings to a folder ready for Lightroom import — originals stay untouched")
+            }
         }
         .confirmationDialog(
             "Move \(session.rejected.count) rejected photo(s) to _rejects?",
@@ -113,6 +119,18 @@ struct ContentView: View {
             )
         ) {
             Button("OK", role: .cancel) {}
+        }
+        .fileImporter(
+            isPresented: $showKeeperDestPicker, allowedContentTypes: [.folder]
+        ) { result in
+            if case .success(let dest) = result {
+                do {
+                    let r = try session.exportKeepers(to: dest)
+                    exportMessage = "\(r.copied) keeper(s) copied — \(r.embedded) with embedded rating, \(r.sidecars) RAW with sidecar. Originals untouched. Import the folder into Lightroom."
+                } catch {
+                    exportMessage = "Keeper export failed: \(error.localizedDescription)"
+                }
+            }
         }
     }
 }
