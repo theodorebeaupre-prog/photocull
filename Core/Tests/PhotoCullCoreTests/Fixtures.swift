@@ -101,6 +101,6 @@ enum Fixtures {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("PhotoCullTests-\(UUID().uuidString)")
         try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
+        return dir.standardizedFileURL
     }
 }
