@@ -44,8 +44,8 @@ struct ContentView: View {
             }
             switch tab {
             case .grid: GridView()
-            case .review: Text("Review — Task 14").frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .groups: Text("Groups — Task 14").frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .review: ReviewView()
+            case .groups: GroupView()
             }
             CullStatusBar()
         }
