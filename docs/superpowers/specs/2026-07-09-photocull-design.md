@@ -82,6 +82,16 @@ Même playbook que MCP Deck :
 - Cask dans le Homebrew tap existant (`homebrew-tap`).
 - README orienté conversion : GIF démo du workflow de culling en tête, tableau comparatif vs Aftershoot/Narrative Select (prix, cloud vs local, open source), badges, section « Why local matters » (vie privée + coût).
 
+## Principes UX (v0.1)
+
+Trois principes de psychologie UX sont intégrés au design de l'interface :
+
+- **Smart defaults** : l'analyse produit des décisions *suggérées* (flou ou yeux fermés → reject suggéré, keeper de rafale → keep suggéré, autres membres de la rafale → reject suggéré). Un bouton « Apply Suggestions » remplit d'un coup les photos encore indécises ; l'utilisateur ajuste au lieu de décider de zéro. Les suggestions n'écrasent jamais une décision manuelle.
+- **Goal gradient** : barre de statut permanente dont la progression compte l'analyse comme première étape complétée (jamais 0 % une fois les photos chargées), avec décompte « kept · rejected · to go » pour créer du momentum.
+- **Aversion à la perte / transparence** : les confirmations et messages d'export nomment des quantités concrètes (« Move 41 rejected photos? », « 12 photos still undecided were skipped »).
+
+La réciprocité (résultats complets sans compte ni upload) et l'effet de contraste (tableau comparatif 0 $ vs 10-30 $/mois) s'appliquent au README plutôt qu'à l'UI. L'effet IKEA n'est pas applicable (pas d'inscription en v0.1).
+
 ## Critères de succès v0.1
 
 - Culler un dossier réel de 500+ photos (RAW inclus) sans crash ni fuite mémoire, avec des groupes de rafale sensés.

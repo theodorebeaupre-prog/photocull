@@ -1481,7 +1481,7 @@ git commit -m "feat: resumable session store in Application Support"
 **Interfaces:**
 - Consumes: everything from `PhotoCullCore` (Tasks 1–11).
 - Produces:
-  - `CullSessionViewModel` (`@MainActor final class`, `ObservableObject`): `@Published folder: URL?`, `@Published photos: [PhotoAnalysis]`, `@Published groups: [PhotoGroup]`, `@Published decisions: [URL: CullDecision]`, `@Published isAnalyzing: Bool`; methods `openFolder(_ url: URL)`, `setDecision(_ d: CullDecision, for id: URL)`, `decision(for id: URL) -> CullDecision`, `regroup()`, `exportXMP() throws`, `exportMoveRejects() throws`, computed `rejected: [URL]`.
+  - `CullSessionViewModel` (`@MainActor final class`, `ObservableObject`): `@Published folder: URL?`, `@Published photos: [PhotoAnalysis]`, `@Published groups: [PhotoGroup]`, `@Published decisions: [URL: CullDecision]`, `@Published isAnalyzing: Bool`; methods `openFolder(_ url: URL)`, `setDecision(_ d: CullDecision, for id: URL)`, `decision(for id: URL) -> CullDecision`, `suggestedDecision(for id: URL) -> CullDecision?`, `applySuggestions()`, `regroup()`, `exportXMP() throws`, `exportMoveRejects() throws`, computed `rejected: [URL]`, `keptCount: Int`, `rejectedCount: Int`, `decidedCount: Int`, `cullProgress: Double` (goal-gradient: analysis counts as the completed first step, never 0 once photos are loaded).
   - `ContentView` with placeholder tabs — Tasks 13–15 replace the placeholders.
   - The generated Xcode project builds: `xcodegen generate && xcodebuild -project PhotoCull.xcodeproj -scheme PhotoCull build`.
 
@@ -1603,6 +1603,42 @@ final class CullSessionViewModel: ObservableObject {
 
     func decision(for id: URL) -> CullDecision {
         decisions[id] ?? .undecided
+    }
+
+    /// Smart default derived from analysis: blurry or closed eyes → reject,
+    /// burst keeper → keep, burst non-keeper → reject. nil = no signal.
+    func suggestedDecision(for id: URL) -> CullDecision? {
+        guard let photo = photos.first(where: { $0.id == id }),
+              !photo.analysisFailed else { return nil }
+        if Scoring.sharpnessScore(photo.sharpness) < 0.25 { return .reject }
+        if (photo.closedEyesProbability ?? 0) > 0.6 { return .reject }
+        if let group = groups.first(where: { $0.members.count > 1 && $0.members.contains(id) }),
+           let keeper = group.suggestedKeeper {
+            return id == keeper ? .keep : .reject
+        }
+        return nil
+    }
+
+    /// Fills suggestions into undecided photos only — never overwrites a
+    /// manual decision. The user adjusts instead of deciding from scratch.
+    func applySuggestions() {
+        for photo in photos where decision(for: photo.id) == .undecided {
+            if let suggested = suggestedDecision(for: photo.id) {
+                decisions[photo.id] = suggested
+            }
+        }
+        persist()
+    }
+
+    var keptCount: Int { decisions.values.filter { $0 == .keep }.count }
+    var rejectedCount: Int { decisions.values.filter { $0 == .reject }.count }
+    var decidedCount: Int { keptCount + rejectedCount }
+
+    /// Goal-gradient progress: the completed analysis counts as step one,
+    /// so the bar never reads zero once photos are loaded.
+    var cullProgress: Double {
+        guard !photos.isEmpty else { return 0 }
+        return Double(decidedCount + 1) / Double(photos.count + 1)
     }
 
     func setDecision(_ d: CullDecision, for id: URL) {
@@ -1731,16 +1767,17 @@ git commit -m "feat: app scaffold with view model and folder picker"
 
 ---
 
-### Task 13: GridView + thumbnails
+### Task 13: GridView + thumbnails + status bar
 
 **Files:**
 - Create: `App/ThumbnailView.swift`
 - Create: `App/GridView.swift`
-- Modify: `App/ContentView.swift` (replace the `.grid` placeholder)
+- Create: `App/CullStatusBar.swift`
+- Modify: `App/ContentView.swift` (replace the `.grid` placeholder; add status bar + "Apply Suggestions" toolbar button)
 
 **Interfaces:**
-- Consumes: `CullSessionViewModel` (Task 12), `Scoring.sharpnessScore` (Task 7).
-- Produces: `ThumbnailView(url: URL, maxPixel: Int = 384)` (async ImageIO thumbnail; gray placeholder while loading) and `GridView`. Task 14 reuses `ThumbnailView` and the `Badge` view.
+- Consumes: `CullSessionViewModel` (Task 12) including `suggestedDecision(for:)`, `applySuggestions()`, `keptCount`/`rejectedCount`/`decidedCount`, `cullProgress`; `Scoring.sharpnessScore` (Task 7).
+- Produces: `ThumbnailView(url: URL, maxPixel: Int = 384)` (async ImageIO thumbnail; gray placeholder while loading), `GridView` (with suggestion badges on undecided photos), and `CullStatusBar` (goal-gradient progress + kept/rejected/to-go tallies). Task 14 reuses `ThumbnailView` and the `Badge` view.
 
 - [ ] **Step 1: Create `App/ThumbnailView.swift`**
 
@@ -1857,6 +1894,15 @@ struct PhotoCell: View {
                 EmptyView()
             }
         }
+        .overlay(alignment: .bottomLeading) {
+            if session.decision(for: photo.id) == .undecided,
+               let suggested = session.suggestedDecision(for: photo.id) {
+                Badge(
+                    text: suggested == .keep ? "suggested keep" : "suggested reject",
+                    color: suggested == .keep ? .green : .orange)
+                    .padding(4)
+            }
+        }
         .contextMenu {
             Button("Keep") { session.setDecision(.keep, for: photo.id) }
             Button("Reject") { session.setDecision(.reject, for: photo.id) }
@@ -1866,7 +1912,35 @@ struct PhotoCell: View {
 }
 ```
 
-- [ ] **Step 3: Wire into `App/ContentView.swift`**
+- [ ] **Step 3: Create `App/CullStatusBar.swift`**
+
+```swift
+import PhotoCullCore
+import SwiftUI
+
+/// Goal-gradient status bar: the completed analysis counts as step one, so the
+/// progress never reads zero — momentum instead of a blank slate.
+struct CullStatusBar: View {
+    @EnvironmentObject var session: CullSessionViewModel
+
+    var body: some View {
+        if !session.photos.isEmpty {
+            HStack(spacing: 12) {
+                ProgressView(value: session.cullProgress)
+                    .frame(maxWidth: 220)
+                Text("Analyzed ✓ · \(session.keptCount) kept · \(session.rejectedCount) rejected · \(session.photos.count - session.decidedCount) to go")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Wire into `App/ContentView.swift`**
 
 Replace:
 ```swift
@@ -1877,16 +1951,32 @@ with:
             case .grid: GridView()
 ```
 
-- [ ] **Step 4: Build**
+Add `CullStatusBar()` right after the closing brace of the `switch tab { ... }` block (still inside the workspace `VStack`), so it reads:
+```swift
+            case .groups: Text("Groups — Task 14").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            CullStatusBar()
+```
+
+Add an "Apply Suggestions" toolbar item (smart defaults: pre-fill undecided photos, user adjusts) inside the `.toolbar { }` block, after the existing `ToolbarItem`s:
+```swift
+            ToolbarItem {
+                Button("Apply Suggestions") { session.applySuggestions() }
+                    .disabled(session.isAnalyzing || session.photos.isEmpty)
+                    .help("Pre-fill undecided photos with suggested keep/reject — adjust anything after")
+            }
+```
+
+- [ ] **Step 5: Build**
 
 Run: `xcodegen generate && xcodebuild -project PhotoCull.xcodeproj -scheme PhotoCull -configuration Debug build`
 Expected: `BUILD SUCCEEDED`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add App
-git commit -m "feat: photo grid with analysis badges and decision marks"
+git commit -m "feat: photo grid with badges, suggestions, and goal-gradient status bar"
 ```
 
 ---
@@ -1929,6 +2019,12 @@ struct ReviewView: View {
                     }
                     if (photo.closedEyesProbability ?? 0) > 0.6 {
                         Badge(text: "eyes closed", color: .red)
+                    }
+                    if session.decision(for: photo.id) == .undecided,
+                       let suggested = session.suggestedDecision(for: photo.id) {
+                        Text("suggested: \(suggested == .keep ? "keep" : "reject")")
+                            .font(.caption.bold())
+                            .foregroundStyle(.orange)
                     }
                     Spacer()
                     Text(decisionLabel)
@@ -2084,7 +2180,10 @@ Add inside the `.toolbar { }` block of `workspace`, after the existing `ToolbarI
                 Button("Write XMP Sidecars") {
                     do {
                         try session.exportXMP()
-                        exportMessage = "XMP sidecars written."
+                        let undecided = session.photos.count - session.decidedCount
+                        exportMessage = undecided > 0
+                            ? "XMP sidecars written. \(undecided) photo(s) still undecided were skipped."
+                            : "XMP sidecars written."
                     } catch {
                         exportMessage = "XMP export failed: \(error.localizedDescription)"
                     }
@@ -2201,7 +2300,13 @@ entirely on your Mac. No cloud, no account, no subscription.
 - **Blur detection** — laplacian sharpness scoring per photo
 - **Closed-eyes detection** — on-device face landmark analysis
 - **Burst grouping** — EXIF time + visual similarity, best frame suggested
+- **Smart suggestions** — analysis pre-fills suggested keep/reject decisions;
+  you scan and adjust instead of deciding from scratch
+- **Momentum built in** — a progress meter that counts your finished analysis
+  as step one, with live kept/rejected/to-go tallies
 - **Keyboard-first review** — `K` keep, `X` reject, arrows to navigate
+- **Results before any ask** — no account, no upload, no paywall; the full
+  report is yours the moment analysis ends
 - **Non-destructive output** — move rejects to `_rejects/`, or write
   **XMP sidecars** that Lightroom Classic reads directly (cull here, edit there)
 - **Private by design** — zero network calls, zero telemetry
