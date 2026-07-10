@@ -13,7 +13,8 @@ public enum RejectMover {
             let base = url.deletingPathExtension().lastPathComponent
             let ext = url.pathExtension
             while fm.fileExists(atPath: dest.path) {
-                dest = rejectsDir.appendingPathComponent("\(base)-\(counter).\(ext)")
+                let suffixed = ext.isEmpty ? "\(base)-\(counter)" : "\(base)-\(counter).\(ext)"
+                dest = rejectsDir.appendingPathComponent(suffixed)
                 counter += 1
             }
             try fm.moveItem(at: url, to: dest)

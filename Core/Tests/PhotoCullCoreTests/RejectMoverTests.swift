@@ -28,4 +28,20 @@ final class RejectMoverTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: rejectsDir.appendingPathComponent("a-1.jpg").path))
     }
+
+    func testCollisionSuffixForExtensionlessFile() throws {
+        let dir = Fixtures.tempDir()
+        let rejectsDir = dir.appendingPathComponent("_rejects")
+        try FileManager.default.createDirectory(at: rejectsDir, withIntermediateDirectories: true)
+        try Data("existing".utf8).write(to: rejectsDir.appendingPathComponent("photo"))
+        let photo = dir.appendingPathComponent("photo")
+        try Data("new".utf8).write(to: photo)
+
+        _ = try RejectMover.moveRejects([photo], from: dir)
+
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: rejectsDir.appendingPathComponent("photo-1").path))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: rejectsDir.appendingPathComponent("photo-1.").path))
+    }
 }
