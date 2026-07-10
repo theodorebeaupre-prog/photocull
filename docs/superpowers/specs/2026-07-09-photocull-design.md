@@ -26,9 +26,10 @@ Les photographes paient 10–30 $/mois pour Aftershoot ou Narrative Select afin 
    - **GridView** : grille de vignettes avec badges (flou / yeux fermés / membre d'un groupe), tri par score.
    - **ReviewView** : mode photo par photo, navigation 100 % clavier — `K` = keep, `X` = reject, flèches = naviguer.
    - **GroupView** : vue par groupe de rafale, meilleure photo suggérée mise en évidence, sélection rapide du keeper.
-4. **Sortie non-destructive** — deux modes au choix de l'utilisateur :
+4. **Sortie non-destructive** — trois modes au choix de l'utilisateur :
    - Déplacer les photos rejetées dans un sous-dossier `_rejects` (déplacement, jamais de suppression).
    - Écrire des **sidecars XMP** avec flags/ratings (pick/reject, étoiles) lisibles directement par Lightroom Classic. C'est la feature clé pour l'audience photographe : culler ici, éditer dans Lightroom.
+   - **Export Keepers (compatibilité Lightroom cloud)** : copier les photos gardées vers un dossier choisi. Lightroom cloud ignore les ratings des sidecars et ne lit que les métadonnées embarquées ; les copies non-RAW reçoivent donc `xmp:Rating` embarqué dans l'en-tête du fichier (copie lossless via ImageIO — les pixels ne sont pas ré-encodés), et les copies RAW reçoivent un sidecar `.xmp` à côté. Les originaux ne sont jamais modifiés — seules des copies sont produites.
 5. **Vie privée** : zéro télémétrie, zéro compte, zéro cloud. C'est un argument produit, pas juste une absence de feature.
 
 ### Exclu (v0.2+)

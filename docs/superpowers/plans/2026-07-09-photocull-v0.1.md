@@ -2393,6 +2393,256 @@ git commit -m "docs: README, MIT license, CI workflow"
 
 ---
 
+### Task 17: Export Keepers for Lightroom (cloud)
+
+**Files:**
+- Create: `Core/Sources/PhotoCullCore/KeeperExporter.swift`
+- Test: `Core/Tests/PhotoCullCoreTests/KeeperExporterTests.swift`
+- Modify: `App/CullSessionViewModel.swift` (add `keepers`, `exportKeepers(to:)`)
+- Modify: `App/ContentView.swift` (add "Export Keepers…" button + destination picker + message)
+- Modify: `README.md` (Lightroom compatibility bullet)
+
+**Interfaces:**
+- Consumes: `XMPWriter.sidecarXML(for:)` (Task 9), `CullDecision` (Task 1), `Fixtures` (Task 2, tests).
+- Produces: `KeeperExporter.exportKeepers(_ urls: [URL], to destination: URL, rating: Int = 3) throws -> ExportResult` where `ExportResult` has `copied`, `embedded`, `sidecars: Int`. Lightroom cloud ignores sidecar ratings, so non-RAW copies get `xmp:Rating` merged into the header via `CGImageDestinationCopyImageSource` (lossless, no pixel re-encode); RAW copies get a `.xmp` sidecar. Originals are never touched.
+
+- [ ] **Step 1: Write the failing test**
+
+`Core/Tests/PhotoCullCoreTests/KeeperExporterTests.swift`:
+
+```swift
+import ImageIO
+import XCTest
+@testable import PhotoCullCore
+
+final class KeeperExporterTests: XCTestCase {
+    func testExportEmbedsRatingInJpegCopy() throws {
+        let dir = Fixtures.tempDir()
+        let photo = Fixtures.write(
+            Fixtures.noiseImage(), to: dir.appendingPathComponent("keep.jpg"))
+        let out = dir.appendingPathComponent("keepers")
+
+        let result = try KeeperExporter.exportKeepers([photo], to: out)
+
+        XCTAssertEqual(result.copied, 1)
+        XCTAssertEqual(result.embedded, 1)
+        XCTAssertEqual(result.sidecars, 0)
+
+        let copy = out.appendingPathComponent("keep.jpg")
+        let src = try XCTUnwrap(CGImageSourceCreateWithURL(copy as CFURL, nil))
+        let meta = try XCTUnwrap(CGImageSourceCopyMetadataAtIndex(src, 0, nil))
+        let tag = try XCTUnwrap(
+            CGImageMetadataCopyTagWithPath(meta, nil, "xmp:Rating" as CFString))
+        XCTAssertEqual(CGImageMetadataTagCopyValue(tag) as? String, "3")
+
+        // Original untouched: no rating in its header
+        let origSrc = try XCTUnwrap(CGImageSourceCreateWithURL(photo as CFURL, nil))
+        if let origMeta = CGImageSourceCopyMetadataAtIndex(origSrc, 0, nil) {
+            XCTAssertNil(CGImageMetadataCopyTagWithPath(origMeta, nil, "xmp:Rating" as CFString))
+        }
+    }
+
+    func testRawCopyGetsSidecarNextToIt() throws {
+        let dir = Fixtures.tempDir()
+        let raw = dir.appendingPathComponent("shot.cr2")
+        try Data("fake raw bytes".utf8).write(to: raw)
+        let out = dir.appendingPathComponent("keepers")
+
+        let result = try KeeperExporter.exportKeepers([raw], to: out)
+
+        XCTAssertEqual(result.copied, 1)
+        XCTAssertEqual(result.sidecars, 1)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: out.appendingPathComponent("shot.cr2").path))
+        let content = try String(
+            contentsOf: out.appendingPathComponent("shot.xmp"), encoding: .utf8)
+        XCTAssertTrue(content.contains("xmp:Rating=\"3\""))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: raw.path), "original untouched")
+    }
+
+    func testCollisionSuffixInDestination() throws {
+        let dir = Fixtures.tempDir()
+        let photo = Fixtures.write(
+            Fixtures.noiseImage(), to: dir.appendingPathComponent("a.jpg"))
+        let out = dir.appendingPathComponent("keepers")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        Fixtures.write(Fixtures.noiseImage(seed: 9), to: out.appendingPathComponent("a.jpg"))
+
+        _ = try KeeperExporter.exportKeepers([photo], to: out)
+
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: out.appendingPathComponent("a-1.jpg").path))
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `swift test --package-path Core --filter KeeperExporterTests`
+Expected: compile error — `cannot find 'KeeperExporter' in scope`.
+
+- [ ] **Step 3: Write minimal implementation**
+
+`Core/Sources/PhotoCullCore/KeeperExporter.swift`:
+
+```swift
+import Foundation
+import ImageIO
+
+/// Exports keeper photos as COPIES for import into Lightroom (cloud).
+/// Lightroom cloud ignores sidecar ratings and only reads metadata embedded
+/// in the file itself, so non-RAW copies get xmp:Rating merged into their
+/// header (lossless — pixels are not re-encoded). RAW copies get a .xmp
+/// sidecar next to them. Originals are never touched.
+public enum KeeperExporter {
+    public struct ExportResult: Equatable, Sendable {
+        public var copied = 0
+        public var embedded = 0
+        public var sidecars = 0
+        public init() {}
+    }
+
+    static let rawExtensions: Set<String> = [
+        "raf", "cr2", "cr3", "nef", "arw", "dng", "orf", "rw2"
+    ]
+
+    @discardableResult
+    public static func exportKeepers(
+        _ urls: [URL], to destination: URL, rating: Int = 3
+    ) throws -> ExportResult {
+        let fm = FileManager.default
+        try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+        var result = ExportResult()
+        for url in urls.sorted(by: { $0.path < $1.path }) {
+            let dest = availableDestination(for: url, in: destination)
+            if rawExtensions.contains(url.pathExtension.lowercased()) {
+                try fm.copyItem(at: url, to: dest)
+                let sidecar = dest.deletingPathExtension().appendingPathExtension("xmp")
+                try XMPWriter.sidecarXML(for: .keep)
+                    .write(to: sidecar, atomically: true, encoding: .utf8)
+                result.sidecars += 1
+            } else if copyEmbeddingRating(from: url, to: dest, rating: rating) {
+                result.embedded += 1
+            } else {
+                // Embedding failed (unreadable/unsupported format): plain copy.
+                try fm.copyItem(at: url, to: dest)
+            }
+            result.copied += 1
+        }
+        return result
+    }
+
+    static func availableDestination(for url: URL, in folder: URL) -> URL {
+        let fm = FileManager.default
+        var dest = folder.appendingPathComponent(url.lastPathComponent)
+        var counter = 1
+        let base = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        while fm.fileExists(atPath: dest.path) {
+            let suffixed = ext.isEmpty ? "\(base)-\(counter)" : "\(base)-\(counter).\(ext)"
+            dest = folder.appendingPathComponent(suffixed)
+            counter += 1
+        }
+        return dest
+    }
+
+    /// Lossless copy with xmp:Rating merged into the header. Returns false
+    /// when the source can't be read or the format doesn't support metadata.
+    static func copyEmbeddingRating(from source: URL, to dest: URL, rating: Int) -> Bool {
+        guard let src = CGImageSourceCreateWithURL(source as CFURL, nil),
+              let type = CGImageSourceGetType(src),
+              let dst = CGImageDestinationCreateWithURL(dest as CFURL, type, 1, nil)
+        else { return false }
+
+        let xmpNamespace = "http://ns.adobe.com/xap/1.0/" as CFString
+        let meta = CGImageMetadataCreateMutable()
+        guard CGImageMetadataRegisterNamespaceForPrefix(
+                  meta, xmpNamespace, "xmp" as CFString, nil),
+              let tag = CGImageMetadataTagCreate(
+                  xmpNamespace, "xmp" as CFString, "Rating" as CFString,
+                  .string, String(rating) as CFString),
+              CGImageMetadataSetTagWithPath(meta, nil, "xmp:Rating" as CFString, tag)
+        else { return false }
+
+        let options: [CFString: Any] = [
+            kCGImageDestinationMergeMetadata: true,
+            kCGImageDestinationMetadata: meta
+        ]
+        return CGImageDestinationCopyImageSource(dst, src, options as CFDictionary, nil)
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `swift test --package-path Core --filter KeeperExporterTests`
+Expected: PASS (3 tests). Then the full suite: `swift test --package-path Core` — expected 40 tests, 0 failures.
+
+- [ ] **Step 5: Wire into the app**
+
+`App/CullSessionViewModel.swift`, add after `rejected`:
+
+```swift
+    var keepers: [URL] {
+        decisions.filter { $0.value == .keep }.map(\.key)
+    }
+
+    /// Copies keepers (never the originals) into `destination` for import
+    /// into Lightroom cloud — ratings embedded in non-RAW copies, sidecars
+    /// next to RAW copies.
+    @discardableResult
+    func exportKeepers(to destination: URL) throws -> KeeperExporter.ExportResult {
+        try KeeperExporter.exportKeepers(keepers, to: destination)
+    }
+```
+
+`App/ContentView.swift`:
+- Add state: `@State private var showKeeperDestPicker = false`
+- Add a toolbar item after "Move Rejects…":
+```swift
+            ToolbarItem {
+                Button("Export Keepers…") { showKeeperDestPicker = true }
+                    .disabled(session.isAnalyzing || session.keepers.isEmpty)
+                    .help("Copy kept photos with embedded ratings to a folder ready for Lightroom import — originals stay untouched")
+            }
+```
+- Add on the workspace `VStack` (next to the existing `.confirmationDialog`/`.alert` modifiers):
+```swift
+        .fileImporter(
+            isPresented: $showKeeperDestPicker, allowedContentTypes: [.folder]
+        ) { result in
+            if case .success(let dest) = result {
+                do {
+                    let r = try session.exportKeepers(to: dest)
+                    exportMessage = "\(r.copied) keeper(s) copied — \(r.embedded) with embedded rating, \(r.sidecars) RAW with sidecar. Originals untouched. Import the folder into Lightroom."
+                } catch {
+                    exportMessage = "Keeper export failed: \(error.localizedDescription)"
+                }
+            }
+        }
+```
+
+`README.md`, add after the "Non-destructive output" bullet:
+```markdown
+- **Both Lightrooms supported** — XMP sidecars for Lightroom Classic, and
+  "Export Keepers" for Lightroom (cloud): copies with the rating embedded in
+  the file header, ready to import — originals never touched
+```
+
+- [ ] **Step 6: Build the app**
+
+Run: `xcodegen generate && xcodebuild -project PhotoCull.xcodeproj -scheme PhotoCull -configuration Debug build`
+Expected: `BUILD SUCCEEDED`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Core App README.md
+git commit -m "feat: export keepers with embedded ratings for Lightroom cloud"
+```
+
+---
+
 ## Out of Plan (release checklist, for reference)
 
 Handled interactively at release time, same playbook as MCP Deck: create the GitHub repo and push, record the demo GIF for the README, tag v0.1.0, release workflow with optional signing, add the Homebrew cask to `theopicture/homebrew-tap`.
