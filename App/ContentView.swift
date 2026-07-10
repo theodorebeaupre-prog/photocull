@@ -43,10 +43,11 @@ struct ContentView: View {
                     .padding(6)
             }
             switch tab {
-            case .grid: Text("Grid — Task 13").frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .grid: GridView()
             case .review: Text("Review — Task 14").frame(maxWidth: .infinity, maxHeight: .infinity)
             case .groups: Text("Groups — Task 14").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            CullStatusBar()
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -59,6 +60,11 @@ struct ContentView: View {
             }
             ToolbarItem {
                 Button("Open Folder…") { showPicker = true }
+            }
+            ToolbarItem {
+                Button("Apply Suggestions") { session.applySuggestions() }
+                    .disabled(session.isAnalyzing || session.photos.isEmpty)
+                    .help("Pre-fill undecided photos with suggested keep/reject — adjust anything after")
             }
         }
     }
