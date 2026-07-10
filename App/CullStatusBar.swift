@@ -11,7 +11,7 @@ struct CullStatusBar: View {
             HStack(spacing: 12) {
                 ProgressView(value: session.cullProgress)
                     .frame(maxWidth: 220)
-                Text("Analyzed ✓ · \(session.keptCount) kept · \(session.rejectedCount) rejected · \(session.photos.count - session.decidedCount) to go")
+                Text("Analyzed ✓ · \(session.keptCount) kept · \(session.rejectedCount) rejected · \(max(0, session.photos.count - session.decidedCount)) to go")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

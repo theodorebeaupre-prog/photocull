@@ -21,9 +21,12 @@ public enum XMPWriter {
         """
     }
 
+    /// Writes `<basename>.xmp` next to the photo. Never overwrites an existing
+    /// sidecar (it may hold Lightroom edits) — returns nil when skipped.
     @discardableResult
-    public static func writeSidecar(for photoURL: URL, decision: CullDecision) throws -> URL {
+    public static func writeSidecar(for photoURL: URL, decision: CullDecision) throws -> URL? {
         let sidecar = photoURL.deletingPathExtension().appendingPathExtension("xmp")
+        guard !FileManager.default.fileExists(atPath: sidecar.path) else { return nil }
         try sidecarXML(for: decision).write(to: sidecar, atomically: true, encoding: .utf8)
         return sidecar
     }

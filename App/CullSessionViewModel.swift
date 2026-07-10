@@ -31,6 +31,7 @@ final class CullSessionViewModel: ObservableObject {
         isAnalyzing = true
         analysisTask = Task {
             for await item in engine.analyzeFolder(url) {
+                if Task.isCancelled { return }
                 photos.append(item.analysis)
                 if let fp = item.featurePrint {
                     featurePrints[item.analysis.id] = fp
@@ -99,7 +100,7 @@ final class CullSessionViewModel: ObservableObject {
     /// so the bar never reads zero once photos are loaded.
     var cullProgress: Double {
         guard !photos.isEmpty else { return 0 }
-        return Double(decidedCount + 1) / Double(photos.count + 1)
+        return min(1, Double(decidedCount + 1) / Double(photos.count + 1))
     }
 
     func setDecision(_ d: CullDecision, for id: URL) {
@@ -111,10 +112,22 @@ final class CullSessionViewModel: ObservableObject {
         decisions.filter { $0.value == .reject }.map(\.key)
     }
 
-    func exportXMP() throws {
-        for (url, d) in decisions where d != .undecided {
-            try XMPWriter.writeSidecar(for: url, decision: d)
+    /// Deterministic path order so RAW+JPEG pairs sharing one sidecar name
+    /// always resolve the same way (first alphabetical wins; existing
+    /// sidecars are never overwritten).
+    @discardableResult
+    func exportXMP() throws -> (written: Int, skippedExisting: Int) {
+        var written = 0
+        var skippedExisting = 0
+        for (url, d) in decisions.sorted(by: { $0.key.path < $1.key.path })
+        where d != .undecided {
+            if try XMPWriter.writeSidecar(for: url, decision: d) != nil {
+                written += 1
+            } else {
+                skippedExisting += 1
+            }
         }
+        return (written, skippedExisting)
     }
 
     func exportMoveRejects() throws {

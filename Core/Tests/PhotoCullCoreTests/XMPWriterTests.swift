@@ -25,10 +25,23 @@ final class XMPWriterTests: XCTestCase {
         let dir = Fixtures.tempDir()
         let photo = Fixtures.write(
             Fixtures.noiseImage(), to: dir.appendingPathComponent("IMG_0001.jpg"))
-        let sidecar = try XMPWriter.writeSidecar(for: photo, decision: .reject)
+        let sidecar = try XCTUnwrap(XMPWriter.writeSidecar(for: photo, decision: .reject))
         XCTAssertEqual(sidecar.lastPathComponent, "IMG_0001.xmp")
         XCTAssertEqual(sidecar.deletingLastPathComponent(), dir)
         let content = try String(contentsOf: sidecar, encoding: .utf8)
         XCTAssertTrue(content.contains("xmp:Rating=\"-1\""))
+    }
+
+    func testNeverOverwritesExistingSidecar() throws {
+        let dir = Fixtures.tempDir()
+        let photo = Fixtures.write(
+            Fixtures.noiseImage(), to: dir.appendingPathComponent("IMG_0002.jpg"))
+        let sidecar = dir.appendingPathComponent("IMG_0002.xmp")
+        try "precious lightroom edits".write(to: sidecar, atomically: true, encoding: .utf8)
+
+        let result = try XMPWriter.writeSidecar(for: photo, decision: .keep)
+
+        XCTAssertNil(result)
+        XCTAssertEqual(try String(contentsOf: sidecar, encoding: .utf8), "precious lightroom edits")
     }
 }

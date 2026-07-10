@@ -71,20 +71,25 @@ struct ContentView: View {
             ToolbarItem {
                 Button("Write XMP Sidecars") {
                     do {
-                        try session.exportXMP()
+                        let result = try session.exportXMP()
+                        var parts = ["\(result.written) XMP sidecar(s) written."]
+                        if result.skippedExisting > 0 {
+                            parts.append("\(result.skippedExisting) existing sidecar(s) left untouched.")
+                        }
                         let undecided = session.photos.count - session.decidedCount
-                        exportMessage = undecided > 0
-                            ? "XMP sidecars written. \(undecided) photo(s) still undecided were skipped."
-                            : "XMP sidecars written."
+                        if undecided > 0 {
+                            parts.append("\(undecided) photo(s) still undecided were skipped.")
+                        }
+                        exportMessage = parts.joined(separator: " ")
                     } catch {
                         exportMessage = "XMP export failed: \(error.localizedDescription)"
                     }
                 }
-                .disabled(session.decisions.isEmpty)
+                .disabled(session.isAnalyzing || !session.decisions.values.contains { $0 != .undecided })
             }
             ToolbarItem {
                 Button("Move Rejects…") { confirmMove = true }
-                    .disabled(session.rejected.isEmpty)
+                    .disabled(session.isAnalyzing || session.rejected.isEmpty)
             }
         }
         .confirmationDialog(
