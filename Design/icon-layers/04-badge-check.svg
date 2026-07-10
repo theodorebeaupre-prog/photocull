@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Layer 4 — Keeper badge (topmost layer; give it the strongest Liquid Glass presence). -->
+  <circle cx="766" cy="706" r="119" fill="#34C759" stroke="#FFFFFF" stroke-width="22"/>
+  <path d="M711 706 L748 745 L825 658" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

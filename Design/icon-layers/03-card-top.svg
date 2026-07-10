@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Layer 3 — Top card with the photo (the "keeper"). Flat fills. -->
+  <g transform="rotate(5 512 512)">
+    <rect x="233" y="299" width="557" height="420" rx="34" fill="#FFFFFF"/>
+    <rect x="268" y="334" width="487" height="308" rx="20" fill="#DBEAFE"/>
+    <circle cx="646" cy="408" r="42" fill="#FCD34D"/>
+    <path d="M268 642 L417 473 L522 585 L604 505 L755 642 Z" fill="#64748B"/>
+  </g>
+</svg>

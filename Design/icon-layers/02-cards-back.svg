@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Layer 2 — Back cards (flat fills; Liquid Glass adds depth). -->
+  <g transform="rotate(-9 512 512)">
+    <rect x="239" y="313" width="546" height="410" rx="34" fill="#C7CDF9"/>
+  </g>
+  <g transform="rotate(-3 512 512)">
+    <rect x="239" y="308" width="546" height="410" rx="34" fill="#E4E7FC"/>
+  </g>
+</svg>
