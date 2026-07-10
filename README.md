@@ -26,8 +26,10 @@ entirely on your Mac. No cloud, no account, no subscription.
 - **Non-destructive output** — move rejects to `_rejects/`, or write
   **XMP sidecars** that Lightroom Classic reads directly (cull here, edit there)
 - **Both Lightrooms supported** — XMP sidecars for Lightroom Classic, and
-  "Export Keepers" for Lightroom (cloud): copies with the rating embedded in
-  the file header, ready to import — originals never touched
+  "Export Keepers" for Lightroom (cloud): JPEG/HEIC copies get the rating
+  embedded in the file header; RAW copies come with an XMP sidecar (Lightroom
+  cloud applies its develop metadata from sidecars — rating pickup varies by
+  version). Originals are never touched.
 - **Private by design** — zero network calls, zero telemetry
 
 ## Install

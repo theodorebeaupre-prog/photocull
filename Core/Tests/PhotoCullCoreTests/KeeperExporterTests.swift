@@ -47,6 +47,22 @@ final class KeeperExporterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: raw.path), "original untouched")
     }
 
+    func testExistingSidecarInDestinationIsNeverOverwritten() throws {
+        let dir = Fixtures.tempDir()
+        let raw = dir.appendingPathComponent("shot.cr2")
+        try Data("fake raw bytes".utf8).write(to: raw)
+        let out = dir.appendingPathComponent("keepers")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        let existing = out.appendingPathComponent("shot.xmp")
+        try "precious edits".write(to: existing, atomically: true, encoding: .utf8)
+
+        let result = try KeeperExporter.exportKeepers([raw], to: out)
+
+        XCTAssertEqual(result.copied, 1)
+        XCTAssertEqual(result.sidecars, 0)
+        XCTAssertEqual(try String(contentsOf: existing, encoding: .utf8), "precious edits")
+    }
+
     func testCollisionSuffixInDestination() throws {
         let dir = Fixtures.tempDir()
         let photo = Fixtures.write(

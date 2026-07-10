@@ -30,9 +30,11 @@ public enum KeeperExporter {
             if rawExtensions.contains(url.pathExtension.lowercased()) {
                 try fm.copyItem(at: url, to: dest)
                 let sidecar = dest.deletingPathExtension().appendingPathExtension("xmp")
-                try XMPWriter.sidecarXML(for: .keep)
-                    .write(to: sidecar, atomically: true, encoding: .utf8)
-                result.sidecars += 1
+                if !fm.fileExists(atPath: sidecar.path) {
+                    try XMPWriter.sidecarXML(rating: rating)
+                        .write(to: sidecar, atomically: true, encoding: .utf8)
+                    result.sidecars += 1
+                }
             } else if copyEmbeddingRating(from: url, to: dest, rating: rating) {
                 result.embedded += 1
             } else {

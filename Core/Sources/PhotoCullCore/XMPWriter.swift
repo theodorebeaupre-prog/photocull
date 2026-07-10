@@ -10,6 +10,10 @@ public enum XMPWriter {
         case .reject: rating = -1
         case .undecided: rating = 0
         }
+        return sidecarXML(rating: rating)
+    }
+
+    public static func sidecarXML(rating: Int) -> String {
         return """
         <x:xmpmeta xmlns:x="adobe:ns:meta/">
           <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
