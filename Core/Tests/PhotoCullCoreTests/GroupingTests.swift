@@ -65,4 +65,21 @@ final class GroupingTests: XCTestCase {
         let groups = Grouping.groupPhotos(items) { _, _ in 0.1 }
         XCTAssertEqual(groups[0].members.first, url("early.jpg"))
     }
+
+    func testDistanceIsMeasuredAgainstGroupAnchor() {
+        // a~b similar, b~c similar, but a~c dissimilar.
+        // Membership is gated on the anchor (a), so c must start a new group.
+        let items = [
+            item("a.jpg", secondsAfterEpoch: 0),
+            item("b.jpg", secondsAfterEpoch: 1),
+            item("c.jpg", secondsAfterEpoch: 2)
+        ]
+        let groups = Grouping.groupPhotos(items) { lhs, rhs in
+            if lhs == url("a.jpg") && rhs == url("c.jpg") { return 5.0 }
+            return 0.1
+        }
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertEqual(groups[0].members, [url("a.jpg"), url("b.jpg")])
+        XCTAssertEqual(groups[1].members, [url("c.jpg")])
+    }
 }
