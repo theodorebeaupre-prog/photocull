@@ -36,6 +36,7 @@ final class CullSessionViewModel: ObservableObject {
                     featurePrints[item.analysis.id] = fp
                 }
             }
+            if Task.isCancelled { return }
             photos.sort { $0.id.lastPathComponent < $1.id.lastPathComponent }
             let known = Set(photos.map(\.id))
             decisions = decisions.filter { known.contains($0.key) }
