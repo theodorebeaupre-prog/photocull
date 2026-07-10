@@ -43,11 +43,12 @@ public struct CullEngine: Sendable {
                     var iterator = urls.makeIterator()
                     func addNext() {
                         if let url = iterator.next() {
-                            group.addTask { Self.analyze(url) }
+                            _ = group.addTaskUnlessCancelled { Self.analyze(url) }
                         }
                     }
                     for _ in 0..<concurrency { addNext() }
                     for await result in group {
+                        if Task.isCancelled { break }
                         continuation.yield(result)
                         addNext()
                     }
@@ -72,7 +73,7 @@ public struct CullEngine: Sendable {
         }
         var analysis = PhotoAnalysis(id: url)
         analysis.sharpness = SharpnessAnalyzer.laplacianVariance(of: image)
-        analysis.closedEyesProbability = (try? FaceAnalyzer.closedEyesProbability(in: image)) ?? nil
+        analysis.closedEyesProbability = try? FaceAnalyzer.closedEyesProbability(in: image)
         analysis.captureDate = ExifReader.captureDate(of: url)
         let featurePrint = try? FeaturePrint.compute(for: image)
         return AnalyzedPhoto(analysis: analysis, featurePrint: featurePrint)
