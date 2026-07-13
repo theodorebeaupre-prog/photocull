@@ -11,6 +11,8 @@ entirely on your Mac. No cloud, no account, no subscription.
 
 ![PhotoCull demo](docs/demo.gif)
 
+> 🛠️ Shipping solo with AI? The **Ship Kit** packs 3 premium Claude Code skills, proven config templates, and a zero-budget launch playbook → https://isonord.gumroad.com/l/qblnuh
+
 ## Features
 
 - **Blur detection** — laplacian sharpness scoring per photo
